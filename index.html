@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Not Today, Ticket</title>
+    
+    <!-- External Assets (No Backend Required) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        .pulse-alert {
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { background-color: rgba(220, 38, 38, 0.85); }
+            50% { background-color: rgba(153, 27, 27, 0.95); }
+            100% { background-color: rgba(220, 38, 38, 0.85); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 overflow-hidden">
+
+    <!-- START SCREEN (Required for GPS Permissions) -->
+    <div id="setup-overlay" class="fixed inset-0 z-[10000] bg-slate-900 flex flex-col items-center justify-center p-8 text-center text-white">
+        <h1 class="text-5xl font-black italic mb-2 tracking-tighter">NOT TODAY,<br>TICKET</h1>
+        <p class="text-blue-400 font-bold mb-8 uppercase tracking-widest text-sm">San Francisco Edition</p>
+        <button onclick="initApp()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-5 px-12 rounded-2xl text-xl shadow-2xl active:scale-95 transition-all">
+            ENTER DRIVE MODE
+        </button>
+        <p class="mt-8 text-xs text-slate-500 max-w-xs">App must remain open and screen on. GPS precision varies by device.</p>
+    </div>
+
+    <!-- ALERT UI (Hidden by default) -->
+    <div id="alert-ui" class="fixed inset-0 z-[9999] hidden flex-col items-center justify-center text-white p-6 pulse-alert">
+        <h2 id="alert-text" class="text-6xl font-black italic text-center drop-shadow-2xl mb-6">🚨 BRO. SLOW DOWN. 🚨</h2>
+        <div class="bg-black/40 backdrop-blur-md px-8 py-4 rounded-3xl border-4 border-white/50">
+            <span id="dist-val" class="text-5xl font-mono font-bold">0.00</span>
+            <span class="text-xl font-bold ml-2 uppercase">Miles</span>
+        </div>
+        <button onclick="closeAlert()" class="mt-12 bg-white/20 hover:bg-white/30 px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest">Dismiss</button>
+    </div>
+
+    <!-- MAIN INTERFACE -->
+    <div id="map"></div>
+
+    <!-- STATUS BAR -->
+    <div class="fixed top-4 left-4 right-4 z-[500] pointer-events-none">
+        <div class="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-4 flex justify-between items-center pointer-events-auto">
+            <div>
+                <p class="text-[10px] uppercase font-black text-slate-400 leading-none mb-1">Status</p>
+                <p id="status-label" class="text-sm font-bold text-slate-800 tracking-tight">Waiting for GPS...</p>
+            </div>
+            <button onclick="simulateAlert()" class="bg-slate-200 text-slate-600 text-[10px] font-bold px-3 py-2 rounded-lg uppercase">Test Alert</button>
+        </div>
+    </div>
+
+    <!-- AD BANNER -->
+    <div id="ad-space" class="fixed bottom-0 left-0 right-0 z-[500] bg-white border-t border-slate-200 h-14 flex items-center justify-center">
+        <div class="text-[10px] text-slate-400 font-medium uppercase tracking-widest font-mono">Sponsored: Secure your SF parking with SpotHero</div>
+    </div>
+
+    <script>
+        // DATA: Confirmed SF Camera Locations (Partial List for MVP)
+        const CAMERAS = [
+            { id: 1, lat: 37.7766, lng: -122.4143, loc: "9th St & Mission" },
+            { id: 2, lat: 37.7850, lng: -122.4310, loc: "Geary & Webster" },
+            { id: 3, lat: 37.7700, lng: -122.4200, loc: "Octavia Blvd" },
+            { id: 4, lat: 37.7241, lng: -122.4518, loc: "Ocean Ave" }
+        ];
+
+        const MEMES = ["🚨 BRO. SLOW DOWN. 🚨", "💸 NOT TODAY, TICKET 💸", "🚓 THEY SEE YOU. 🚓", "🐌 SLOW DOWN MR. FAST 🐌"];
+        
+        let map, userMarker;
+        let isAlerting = false;
+
+        function initApp() {
+            document.getElementById('setup-overlay').style.display = 'none';
+            
+            // 1. Setup Map
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([37.7749, -122.4194], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            // 2. Add Camera Visuals
+            CAMERAS.forEach(cam => {
+                L.circle([cam.lat, cam.lng], { color: '#ef4444', weight: 2, fillOpacity: 0.1, radius: 200 }).addTo(map);
+            });
+
+            // 3. Start Tracking
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updatePosition, handleError, {
+                    enableHighAccuracy: true,
+                    maximumAge: 0
+                });
+                document.getElementById('status-label').innerText = "SYSTEM ACTIVE";
+            }
+        }
+
+        function updatePosition(position) {
+            const { latitude, longitude } = position.coords;
+            const userPos = [latitude, longitude];
+
+            // Update Map
+            if (!userMarker) {
+                userMarker = L.circleMarker(userPos, { radius: 10, color: '#3b82f6', fillOpacity: 1 }).addTo(map);
+            } else {
+                userMarker.setLatLng(userPos);
+            }
+            map.panTo(userPos);
+
+            // Check Distances
+            let minDistance = 999;
+            CAMERAS.forEach(cam => {
+                const d = calcDist(latitude, longitude, cam.lat, cam.lng);
+                if (d < minDistance) minDistance = d;
+            });
+
+            // Logic: Trigger Alert at 0.5 miles
+            if (minDistance < 0.5 && !isAlerting) {
+                showAlert(minDistance);
+            } else if (minDistance > 0.6 && isAlerting) {
+                closeAlert();
+            } else if (isAlerting) {
+                document.getElementById('dist-val').innerText = minDistance.toFixed(2);
+            }
+        }
+
+        function showAlert(dist) {
+            isAlerting = true;
+            const ui = document.getElementById('alert-ui');
+            document.getElementById('alert-text').innerText = MEMES[Math.floor(Math.random() * MEMES.length)];
+            document.getElementById('dist-val').innerText = dist.toFixed(2);
+            ui.style.display = 'flex';
+        }
+
+        function closeAlert() {
+            isAlerting = false;
+            document.getElementById('alert-ui').style.display = 'none';
+        }
+
+        function simulateAlert() {
+            showAlert(0.34);
+        }
+
+        function handleError(err) {
+            document.getElementById('status-label').innerText = "GPS Error: " + err.code;
+        }
+
+        // Haversine Formula
+        function calcDist(lat1, lon1, lat2, lon2) {
+            const R = 3958.8; // miles
+            const dLat = (lat2-lat1) * Math.PI/180;
+            const dLon = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * 
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+    </script>
+</body>
+</html>
