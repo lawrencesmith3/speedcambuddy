@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Not Today, Ticket | SF Speed Camera Alerts</title>
+    <title>Not Today, Ticket | SF Speed Cameras</title>
     
     <!-- UI & Map Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,136 +13,144 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        #map { height: 100vh; width: 100%; z-index: 1; filter: grayscale(0.5); }
+        #map { height: 100vh; width: 100%; z-index: 1; filter: grayscale(0.4) contrast(1.1); }
         
         .pulse-alert {
-            animation: pulse-red 2s infinite ease-in-out;
+            animation: pulse-red 1.5s infinite ease-in-out;
         }
 
         @keyframes pulse-red {
-            0% { background-color: rgba(220, 38, 38, 0.9); }
-            50% { background-color: rgba(127, 29, 29, 0.95); }
-            100% { background-color: rgba(220, 38, 38, 0.9); }
+            0% { background-color: rgba(220, 38, 38, 0.95); }
+            50% { background-color: rgba(127, 29, 29, 0.98); }
+            100% { background-color: rgba(220, 38, 38, 0.95); }
         }
 
-        /* Hide elements when alert is active for maximum visibility */
         .is-alerting #status-container, .is-alerting #ad-banner {
             display: none;
         }
+        
+        /* Custom map marker style */
+        .user-pos-marker {
+            background: #3b82f6;
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+        }
     </style>
 </head>
-<body class="bg-slate-900 overflow-hidden font-sans antialiased">
+<body class="bg-slate-900 overflow-hidden font-sans antialiased select-none">
 
-    <!-- 1. START SCREEN (Required for GPS & Wake Lock) -->
+    <!-- 1. START SCREEN (Permissions & Wake Lock Trigger) -->
     <div id="start-screen" class="fixed inset-0 z-[10000] bg-slate-900 flex flex-col items-center justify-center p-8 text-center text-white">
-        <div class="mb-6">
-            <h1 class="text-5xl font-black italic tracking-tighter leading-none">NOT TODAY,<br>TICKET</h1>
-            <p class="text-blue-400 font-bold mt-2 uppercase tracking-widest text-xs underline decoration-2 offset-4">San Francisco Pilot Edition</p>
+        <div class="mb-8">
+            <h1 class="text-6xl font-black italic tracking-tighter leading-none mb-2">NOT TODAY,<br>TICKET</h1>
+            <p class="text-blue-400 font-bold uppercase tracking-widest text-xs border-y border-blue-400/30 py-2">Official SF 33-Camera Pilot</p>
         </div>
         
-        <div class="space-y-4 mb-10 text-slate-400 text-sm max-w-xs">
-            <p>✅ 33 Active SF Speed Cameras Loaded</p>
-            <p>✅ High-Contrast Visual Alerts</p>
-            <p>✅ Real-time Proximity Tracking</p>
+        <div class="bg-slate-800/50 p-6 rounded-2xl mb-10 text-left space-y-3 w-full max-w-xs border border-white/5">
+            <div class="flex items-center gap-3"><span class="text-xl">📍</span> <span class="text-sm">Real-time GPS proximity</span></div>
+            <div class="flex items-center gap-3"><span class="text-xl">🚨</span> <span class="text-sm">Glanceable speed-limit alerts</span></div>
+            <div class="flex items-center gap-3"><span class="text-xl">🔆</span> <span class="text-sm">Prevents screen auto-lock</span></div>
         </div>
 
-        <button onclick="startApp()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-5 px-14 rounded-2xl text-xl shadow-[0_0_40px_rgba(37,99,235,0.4)] active:scale-95 transition-all">
-            START DRIVING
+        <button onclick="startApp()" class="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl text-2xl shadow-[0_0_50px_rgba(37,99,235,0.3)] active:scale-95 transition-all">
+            GO DRIVE
         </button>
         
-        <p class="mt-10 text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">
-            Keep phone mounted. Keep screen on.<br>Obey all traffic laws.
+        <p class="mt-8 text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">
+            By using this app, you agree to obey all traffic laws.<br>Do not interact with phone while driving.
         </p>
     </div>
 
-    <!-- 2. ALERT UI (Hidden by default) -->
+    <!-- 2. ALERT UI (Fullscreen overlay) -->
     <div id="alert-ui" class="fixed inset-0 z-[9999] hidden flex-col items-center justify-center text-white p-6 pulse-alert">
-        <h2 id="alert-headline" class="text-6xl font-black italic text-center drop-shadow-2xl mb-4 leading-tight uppercase">🚨 Bro. Slow Down. 🚨</h2>
+        <h2 id="alert-headline" class="text-6xl font-extrabold italic text-center drop-shadow-2xl mb-6 leading-tight uppercase tracking-tighter">🚨 SLOW DOWN 🚨</h2>
         
-        <div class="flex flex-col items-center gap-4">
-            <div class="bg-black/60 backdrop-blur-md px-10 py-6 rounded-[3rem] border-4 border-white shadow-2xl">
-                <span id="dist-val" class="text-7xl font-mono font-black">0.00</span>
-                <span class="text-2xl font-black ml-1">MI</span>
+        <div class="flex flex-col items-center gap-6">
+            <div class="bg-black/70 backdrop-blur-xl px-12 py-8 rounded-[4rem] border-4 border-white shadow-2xl flex flex-col items-center">
+                <span id="dist-val" class="text-8xl font-mono font-black tracking-tighter">0.00</span>
+                <span class="text-xl font-bold uppercase tracking-widest opacity-70">Miles Away</span>
             </div>
             
-            <div id="speed-limit-badge" class="bg-white text-red-600 font-black px-6 py-2 rounded-full text-xl shadow-lg uppercase tracking-tighter">
-                Limit: -- MPH
+            <div id="speed-limit-badge" class="bg-white text-red-700 font-black px-8 py-3 rounded-2xl text-3xl shadow-2xl uppercase tracking-tighter">
+                Limit: 25 MPH
             </div>
         </div>
 
-        <button onclick="manualDismiss()" class="mt-12 text-white/50 border border-white/20 px-8 py-2 rounded-full text-xs font-bold uppercase tracking-widest active:bg-white/10">
-            Dismiss
+        <button onclick="manualDismiss()" class="mt-16 text-white/40 border border-white/10 px-10 py-3 rounded-full text-xs font-bold uppercase tracking-widest active:bg-white/10">
+            Mute This Camera
         </button>
     </div>
 
-    <!-- 3. MAIN INTERFACE -->
+    <!-- 3. MAP -->
     <div id="map"></div>
 
-    <!-- 4. STATUS BAR -->
+    <!-- 4. TOP STATUS BAR -->
     <div id="status-container" class="fixed top-6 left-4 right-4 z-[500] pointer-events-none">
-        <div class="bg-white/95 backdrop-blur shadow-2xl rounded-2xl p-4 flex justify-between items-center pointer-events-auto border border-slate-200">
+        <div class="bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-4 flex justify-between items-center pointer-events-auto border border-slate-200">
             <div>
-                <p class="text-[10px] uppercase font-black text-slate-400 leading-none mb-1">Live Tracking</p>
-                <p id="status-text" class="text-sm font-bold text-slate-800 tracking-tight italic">Waiting for GPS...</p>
+                <p class="text-[10px] uppercase font-black text-slate-400 leading-none mb-1 tracking-widest">SF Speed Pilot</p>
+                <p id="status-text" class="text-sm font-bold text-slate-800 italic">Finding Satellites...</p>
             </div>
-            <div class="flex gap-2">
-                <button onclick="testAlert()" class="bg-slate-100 text-slate-500 text-[10px] font-black px-3 py-2 rounded-lg uppercase tracking-tighter">Test UI</button>
-            </div>
+            <button onclick="testAlert()" class="bg-slate-100 text-slate-500 text-[10px] font-black px-4 py-2 rounded-lg uppercase tracking-widest">Test UI</button>
         </div>
     </div>
 
-    <!-- 5. AD BANNER PLACEHOLDER -->
+    <!-- 5. BANNER AD AREA -->
     <div id="ad-banner" class="fixed bottom-0 left-0 right-0 z-[500] bg-white border-t border-slate-200 h-16 flex items-center justify-center">
-        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">Sponsored: Drive Safe SF</div>
+        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] animate-pulse">Sponsored: Secure SF Parking</div>
     </div>
 
     <script>
-        // --- DATASET: ALL 33 SF CAMERA LOCATIONS ---
+        /**
+         * THE DATASET: ALL 33 OFFICIAL SFMTA LOCATIONS
+         * Coordinates are approximate centroids for the enforced segments.
+         */
         const CAMERAS = [
-            { id: 1, lat: 37.7725, lng: -122.5034, loc: "Fulton (42nd-43rd)", limit: 25 },
-            { id: 2, lat: 37.7766, lng: -122.4602, loc: "Fulton (Arguello-2nd)", limit: 25 },
-            { id: 3, lat: 37.7812, lng: -122.4661, loc: "Geary (7th-8th)", limit: 25 },
-            { id: 4, lat: 37.7651, lng: -122.4856, loc: "Lincoln Way (27th-28th)", limit: 30 },
-            { id: 5, lat: 37.7354, lng: -122.5008, loc: "Sloat (41st-Skyline)", limit: 35 },
-            { id: 6, lat: 37.8016, lng: -122.4101, loc: "Columbus (Lombard)", limit: 20 },
-            { id: 7, lat: 37.7979, lng: -122.4087, loc: "Broadway (Powell)", limit: 25 },
-            { id: 8, lat: 37.8018, lng: -122.4018, loc: "Embarcadero (Green)", limit: 25 },
-            { id: 9, lat: 37.7850, lng: -122.4310, loc: "Geary (Webster)", limit: 30 },
-            { id: 10, lat: 37.7818, lng: -122.4215, loc: "Turk (Van Ness)", limit: 20 },
-            { id: 11, lat: 37.7615, lng: -122.4430, loc: "Market (Danvers)", limit: 30 },
-            { id: 12, lat: 37.7788, lng: -122.4116, loc: "Mission (8th-9th)", limit: 20 },
-            { id: 13, lat: 37.7753, lng: -122.4049, loc: "7th (Harrison)", limit: 25 },
-            { id: 14, lat: 37.7711, lng: -122.4128, loc: "9th (Bryant)", limit: 25 },
-            { id: 15, lat: 37.7725, lng: -122.4095, loc: "10th (Harrison)", limit: 25 },
-            { id: 16, lat: 37.7770, lng: -122.3948, loc: "Harrison (4th-5th)", limit: 25 },
-            { id: 17, lat: 37.7821, lng: -122.3925, loc: "Bryant (2nd-3rd)", limit: 25 },
-            { id: 18, lat: 37.7785, lng: -122.3908, loc: "King (4th-5th)", limit: 30 },
-            { id: 19, lat: 37.7241, lng: -122.4518, loc: "Ocean (Frida Kahlo)", limit: 25 },
-            { id: 20, lat: 37.7315, lng: -122.4442, loc: "Monterey (Edna)", limit: 25 },
-            { id: 21, lat: 37.7165, lng: -122.4412, loc: "Geneva (Prague)", limit: 35 },
-            { id: 22, lat: 37.7121, lng: -122.4434, loc: "Mission (Ottawa)", limit: 25 },
-            { id: 23, lat: 37.7105, lng: -122.4528, loc: "San Jose (Santa Ynez)", limit: 30 },
-            { id: 24, lat: 37.7598, lng: -122.4235, loc: "Guerrero (19th-20th)", limit: 25 },
-            { id: 25, lat: 37.7651, lng: -122.4105, loc: "16th (Bryant)", limit: 25 },
-            { id: 26, lat: 37.7485, lng: -122.4135, loc: "Cesar Chavez (Folsom)", limit: 25 },
-            { id: 27, lat: 37.7425, lng: -122.4230, loc: "San Jose (29th-30th)", limit: 30 },
-            { id: 28, lat: 37.7495, lng: -122.3912, loc: "Cesar Chavez (Indiana)", limit: 25 },
-            { id: 29, lat: 37.7215, lng: -122.3965, loc: "3rd (Key Ave)", limit: 30 },
-            { id: 30, lat: 37.7188, lng: -122.4005, loc: "Bayshore Blvd", limit: 35 },
-            { id: 31, lat: 37.8045, lng: -122.4245, loc: "Bay St (Octavia)", limit: 25 },
-            { id: 32, lat: 37.7985, lng: -122.4238, loc: "Franklin (Union)", limit: 25 },
-            { id: 33, lat: 37.7460, lng: -122.4555, loc: "Laguna Honda", limit: 25 }
+            { id: 1, lat: 37.7725, lng: -122.5034, name: "Fulton St (42nd-43rd)", limit: 25 },
+            { id: 2, lat: 37.7766, lng: -122.4602, name: "Fulton St (Arguello-2nd)", limit: 25 },
+            { id: 3, lat: 37.7812, lng: -122.4661, name: "Geary Blvd (7th-8th)", limit: 25 },
+            { id: 4, lat: 37.7651, lng: -122.4856, name: "Lincoln Way (27th-28th)", limit: 30 },
+            { id: 5, lat: 37.7354, lng: -122.5008, name: "Sloat Blvd (41st-Skyline)", limit: 35 },
+            { id: 6, lat: 37.8016, lng: -122.4101, name: "Columbus Ave (Lombard)", limit: 20 },
+            { id: 7, lat: 37.7979, lng: -122.4087, name: "Broadway (Powell)", limit: 25 },
+            { id: 8, lat: 37.8018, lng: -122.4018, name: "Embarcadero (Green)", limit: 25 },
+            { id: 9, lat: 37.7850, lng: -122.4310, name: "Geary Blvd (Webster)", limit: 30 },
+            { id: 10, lat: 37.7818, lng: -122.4215, name: "Turk St (Van Ness)", limit: 20 },
+            { id: 11, lat: 37.7615, lng: -122.4430, name: "Market St (Danvers)", limit: 30 },
+            { id: 12, lat: 37.7788, lng: -122.4116, name: "Mission St (8th-9th)", limit: 20 },
+            { id: 13, lat: 37.7753, lng: -122.4049, name: "7th St (Harrison)", limit: 25 },
+            { id: 14, lat: 37.7711, lng: -122.4128, name: "9th St (Bryant)", limit: 25 },
+            { id: 15, lat: 37.7725, lng: -122.4095, name: "10th St (Harrison)", limit: 25 },
+            { id: 16, lat: 37.7770, lng: -122.3948, name: "Harrison St (4th-5th)", limit: 25 },
+            { id: 17, lat: 37.7821, lng: -122.3925, name: "Bryant St (2nd-3rd)", limit: 25 },
+            { id: 18, lat: 37.7785, lng: -122.3908, name: "King St (4th-5th)", limit: 30 },
+            { id: 19, lat: 37.7241, lng: -122.4518, name: "Ocean Ave (Frida Kahlo)", limit: 25 },
+            { id: 20, lat: 37.7315, lng: -122.4442, name: "Monterey Blvd (Edna)", limit: 25 },
+            { id: 21, lat: 37.7165, lng: -122.4412, name: "Geneva Ave (Prague)", limit: 35 },
+            { id: 22, lat: 37.7121, lng: -122.4434, name: "Mission St (Ottawa)", limit: 25 },
+            { id: 23, lat: 37.7105, lng: -122.4528, name: "San Jose Ave (Santa Ynez)", limit: 30 },
+            { id: 24, lat: 37.7598, lng: -122.4235, name: "Guerrero St (19th-20th)", limit: 25 },
+            { id: 25, lat: 37.7651, lng: -122.4105, name: "16th St (Bryant-Potrero)", limit: 25 },
+            { id: 26, lat: 37.7485, lng: -122.4135, name: "Cesar Chavez (Folsom)", limit: 25 },
+            { id: 27, lat: 37.7425, lng: -122.4230, name: "San Jose Ave (29th-30th)", limit: 30 },
+            { id: 28, lat: 37.7495, lng: -122.3912, name: "Cesar Chavez (Indiana)", limit: 25 },
+            { id: 29, lat: 37.7215, lng: -122.3965, name: "3rd St (Key-Jamestown)", limit: 30 },
+            { id: 30, lat: 37.7188, lng: -122.4005, name: "Bayshore Blvd", limit: 35 },
+            { id: 31, lat: 37.8045, lng: -122.4245, name: "Bay St (Octavia)", limit: 25 },
+            { id: 32, lat: 37.7985, lng: -122.4238, name: "Franklin St (Union)", limit: 25 },
+            { id: 33, lat: 37.7460, lng: -122.4555, name: "Laguna Honda Blvd", limit: 25 }
         ];
 
-        const MEMES = ["🚨 BRO. SLOW DOWN. 🚨", "💸 NOT TODAY, TICKET 💸", "🚓 THEY SEE YOU. 🚓", "🐌 SLOW DOWN MR. FAST 🐌", "👀 BIG BROTHER IS WATCHING 👀"];
+        const MEMES = ["🚨 BRO. SLOW DOWN. 🚨", "💸 NOT TODAY, TICKET 💸", "🚓 THEY SEE YOU. 🚓", "🐌 EMBRACE THE SNAIL 🐌", "👀 BIG BROTHER IS WATCHING 👀", "🛑 CALM YOUR JETS 🛑"];
         
-        // --- APP STATE ---
+        // App State
         let map, userMarker, wakeLock = null;
         let isAlerting = false;
-        const TRIGGER_DIST = 0.52; // Trigger at ~0.5 miles
-        const CLEAR_DIST = 0.60;   // Clear after moving away
+        let mutedCamId = null;
+        const ALERT_DIST = 0.52; // Trigger distance (miles)
+        const CLEAR_DIST = 0.65; // Clear distance (with hysteresis)
 
-        // --- CORE FUNCTIONS ---
         async function startApp() {
             document.getElementById('start-screen').style.display = 'none';
             initMap();
@@ -155,7 +163,7 @@
                 });
                 document.getElementById('status-text').innerText = "TRACKING ACTIVE";
             } else {
-                alert("GPS Not Supported on this device.");
+                alert("This device doesn't support GPS.");
             }
         }
 
@@ -163,27 +171,25 @@
             map = L.map('map', { 
                 zoomControl: false, 
                 attributionControl: false 
-            }).setView([37.7749, -122.4194], 15);
+            }).setView([37.7749, -122.4194], 14);
 
-            // Using CartoDB "Voyager" map style
+            // Using high-contrast Voyager tiles
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
-            // Add camera locations to map
+            // Add camera danger zones to map
             CAMERAS.forEach(cam => {
                 L.circle([cam.lat, cam.lng], {
                     color: '#ef4444',
-                    weight: 2,
-                    fillOpacity: 0.2,
-                    radius: 150
+                    weight: 1,
+                    fillOpacity: 0.15,
+                    radius: 200 // Visual representation
                 }).addTo(map);
             });
 
+            // Create user position marker
             userMarker = L.circleMarker([0,0], { 
                 radius: 10, 
-                color: '#3b82f6', 
-                fillOpacity: 1, 
-                weight: 3, 
-                fillColor: 'white' 
+                className: 'user-pos-marker' 
             }).addTo(map);
         }
 
@@ -194,22 +200,28 @@
             userMarker.setLatLng(userPos);
             map.panTo(userPos);
 
-            // Find closest camera
-            let closest = { dist: 999, limit: 25 };
+            // Find nearest camera
+            let closest = { dist: 999, id: null, limit: 25 };
             CAMERAS.forEach(cam => {
                 const d = calcDist(latitude, longitude, cam.lat, cam.lng);
                 if (d < closest.dist) {
                     closest.dist = d;
+                    closest.id = cam.id;
                     closest.limit = cam.limit;
                 }
             });
 
-            // ALERT LOGIC
-            if (closest.dist <= TRIGGER_DIST && !isAlerting) {
+            // Logic: Trigger Alert
+            if (closest.dist <= ALERT_DIST && !isAlerting && mutedCamId !== closest.id) {
                 showAlert(closest.dist, closest.limit);
-            } else if (closest.dist >= CLEAR_DIST && isAlerting) {
+            } 
+            // Logic: Clear Alert
+            else if (isAlerting && closest.dist >= CLEAR_DIST) {
                 hideAlert();
-            } else if (isAlerting) {
+                mutedCamId = null; // Reset mute when we leave the area
+            } 
+            // Logic: Update ongoing alert
+            else if (isAlerting) {
                 document.getElementById('dist-val').innerText = closest.dist.toFixed(2);
             }
         }
@@ -219,11 +231,10 @@
             document.body.classList.add('is-alerting');
             const ui = document.getElementById('alert-ui');
             const headline = document.getElementById('alert-headline');
-            const limitBadge = document.getElementById('speed-limit-badge');
             
             headline.innerText = MEMES[Math.floor(Math.random() * MEMES.length)];
             document.getElementById('dist-val').innerText = dist.toFixed(2);
-            limitBadge.innerText = `Limit: ${limit} MPH`;
+            document.getElementById('speed-limit-badge').innerText = `Limit: ${limit} MPH`;
             
             ui.style.display = 'flex';
         }
@@ -235,17 +246,18 @@
         }
 
         function manualDismiss() {
+            // Find current closest cam to mute it
+            // Simple approach for MVP: mute alerting for 2 minutes
             hideAlert();
-            // Prevent re-triggering for 30 seconds
-            isAlerting = true; 
-            setTimeout(() => { isAlerting = false; }, 30000);
+            isAlerting = true; // Block triggers
+            setTimeout(() => { isAlerting = false; }, 120000); 
         }
 
         function testAlert() {
             showAlert(0.34, 25);
         }
 
-        // --- UTILS ---
+        // --- MATH & UTILS ---
         function calcDist(lat1, lon1, lat2, lon2) {
             const R = 3958.8; // Miles
             const dLat = (lat2-lat1) * Math.PI/180;
@@ -262,12 +274,13 @@
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
             } catch (err) {
-                console.log("WakeLock failed");
+                console.warn("WakeLock unavailable");
             }
         }
 
         function handleGPSError(err) {
-            document.getElementById('status-text').innerText = "GPS Error: " + err.code;
+            const msg = (err.code === 1) ? "Enable GPS in Settings" : "GPS Signal Lost";
+            document.getElementById('status-text').innerText = msg;
             document.getElementById('status-text').classList.add('text-red-600');
         }
     </script>
