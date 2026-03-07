@@ -7,7 +7,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Not Today, Ticket | SF Speed Cameras</title>
     
-    <!-- UI & Map Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,69 +15,69 @@
         #map { height: 100vh; width: 100%; z-index: 1; filter: grayscale(0.4) contrast(1.1); }
         
         .pulse-alert {
-            animation: pulse-red 1.5s infinite ease-in-out;
+            animation: pulse-red 1.2s infinite ease-in-out;
         }
 
         @keyframes pulse-red {
-            0% { background-color: rgba(220, 38, 38, 0.95); }
+            0% { background-color: rgba(220, 38, 38, 0.96); }
             50% { background-color: rgba(127, 29, 29, 0.98); }
-            100% { background-color: rgba(220, 38, 38, 0.95); }
+            100% { background-color: rgba(220, 38, 38, 0.96); }
         }
 
         .is-alerting #status-container, .is-alerting #ad-banner {
             display: none;
         }
-        
-        /* Custom map marker style */
-        .user-pos-marker {
-            background: #3b82f6;
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+
+        /* Smooth rotation for the compass arrow */
+        #direction-arrow {
+            transition: transform 0.5s ease-out;
         }
     </style>
 </head>
 <body class="bg-slate-900 overflow-hidden font-sans antialiased select-none">
 
-    <!-- 1. START SCREEN (Permissions & Wake Lock Trigger) -->
+    <!-- 1. START SCREEN -->
     <div id="start-screen" class="fixed inset-0 z-[10000] bg-slate-900 flex flex-col items-center justify-center p-8 text-center text-white">
-        <div class="mb-8">
+        <div class="mb-8 text-center">
             <h1 class="text-6xl font-black italic tracking-tighter leading-none mb-2">NOT TODAY,<br>TICKET</h1>
-            <p class="text-blue-400 font-bold uppercase tracking-widest text-xs border-y border-blue-400/30 py-2">Official SF 33-Camera Pilot</p>
+            <p class="text-blue-400 font-bold uppercase tracking-widest text-xs border-y border-blue-400/30 py-2">SF 300m Precision Build</p>
         </div>
         
-        <div class="bg-slate-800/50 p-6 rounded-2xl mb-10 text-left space-y-3 w-full max-w-xs border border-white/5">
-            <div class="flex items-center gap-3"><span class="text-xl">📍</span> <span class="text-sm">Real-time GPS proximity</span></div>
-            <div class="flex items-center gap-3"><span class="text-xl">🚨</span> <span class="text-sm">Glanceable speed-limit alerts</span></div>
-            <div class="flex items-center gap-3"><span class="text-xl">🔆</span> <span class="text-sm">Prevents screen auto-lock</span></div>
-        </div>
-
-        <button onclick="startApp()" class="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl text-2xl shadow-[0_0_50px_rgba(37,99,235,0.3)] active:scale-95 transition-all">
+        <button onclick="startApp()" class="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-3xl text-2xl shadow-[0_0_50px_rgba(37,99,235,0.3)] active:scale-95 transition-all">
             GO DRIVE
         </button>
         
-        <p class="mt-8 text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">
-            By using this app, you agree to obey all traffic laws.<br>Do not interact with phone while driving.
+        <p class="mt-10 text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">
+            Shortened 300m Alert Radius<br>Dynamic Directional Tracking
         </p>
     </div>
 
-    <!-- 2. ALERT UI (Fullscreen overlay) -->
+    <!-- 2. ALERT UI -->
     <div id="alert-ui" class="fixed inset-0 z-[9999] hidden flex-col items-center justify-center text-white p-6 pulse-alert">
-        <h2 id="alert-headline" class="text-6xl font-extrabold italic text-center drop-shadow-2xl mb-6 leading-tight uppercase tracking-tighter">🚨 SLOW DOWN 🚨</h2>
+        
+        <!-- DYNAMIC ARROW -->
+        <div id="arrow-container" class="mb-8">
+            <svg id="direction-arrow" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+        </div>
+
+        <h2 id="alert-headline" class="text-5xl font-black italic text-center drop-shadow-2xl mb-6 leading-tight uppercase tracking-tighter">🚨 SLOW DOWN 🚨</h2>
         
         <div class="flex flex-col items-center gap-6">
-            <div class="bg-black/70 backdrop-blur-xl px-12 py-8 rounded-[4rem] border-4 border-white shadow-2xl flex flex-col items-center">
-                <span id="dist-val" class="text-8xl font-mono font-black tracking-tighter">0.00</span>
-                <span class="text-xl font-bold uppercase tracking-widest opacity-70">Miles Away</span>
+            <div class="bg-black/70 backdrop-blur-xl px-10 py-6 rounded-[3rem] border-4 border-white shadow-2xl flex flex-col items-center min-w-[200px]">
+                <span id="dist-val" class="text-7xl font-mono font-black tracking-tighter">0.00</span>
+                <span class="text-xl font-bold uppercase opacity-70">Meters</span>
             </div>
             
-            <div id="speed-limit-badge" class="bg-white text-red-700 font-black px-8 py-3 rounded-2xl text-3xl shadow-2xl uppercase tracking-tighter">
-                Limit: 25 MPH
+            <div id="speed-limit-badge" class="bg-white text-red-700 font-black px-8 py-2 rounded-2xl text-2xl shadow-2xl">
+                LIMIT: 25 MPH
             </div>
         </div>
 
-        <button onclick="manualDismiss()" class="mt-16 text-white/40 border border-white/10 px-10 py-3 rounded-full text-xs font-bold uppercase tracking-widest active:bg-white/10">
-            Mute This Camera
+        <button onclick="hideAlert()" class="mt-12 text-white/30 border border-white/10 px-8 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest">
+            Close Alert
         </button>
     </div>
 
@@ -89,23 +88,14 @@
     <div id="status-container" class="fixed top-6 left-4 right-4 z-[500] pointer-events-none">
         <div class="bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-4 flex justify-between items-center pointer-events-auto border border-slate-200">
             <div>
-                <p class="text-[10px] uppercase font-black text-slate-400 leading-none mb-1 tracking-widest">SF Speed Pilot</p>
-                <p id="status-text" class="text-sm font-bold text-slate-800 italic">Finding Satellites...</p>
+                <p class="text-[10px] uppercase font-black text-slate-400 leading-none mb-1 tracking-widest">Tracking Distance</p>
+                <p id="status-text" class="text-sm font-bold text-slate-800 italic">Finding GPS...</p>
             </div>
-            <button onclick="testAlert()" class="bg-slate-100 text-slate-500 text-[10px] font-black px-4 py-2 rounded-lg uppercase tracking-widest">Test UI</button>
+            <button onclick="testAlert()" class="bg-slate-100 text-slate-500 text-[10px] font-black px-4 py-2 rounded-lg uppercase">Test</button>
         </div>
     </div>
 
-    <!-- 5. BANNER AD AREA -->
-    <div id="ad-banner" class="fixed bottom-0 left-0 right-0 z-[500] bg-white border-t border-slate-200 h-16 flex items-center justify-center">
-        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] animate-pulse">Sponsored: Secure SF Parking</div>
-    </div>
-
     <script>
-        /**
-         * THE DATASET: ALL 33 OFFICIAL SFMTA LOCATIONS
-         * Coordinates are approximate centroids for the enforced segments.
-         */
         const CAMERAS = [
             { id: 1, lat: 37.7725, lng: -122.5034, name: "Fulton St (42nd-43rd)", limit: 25 },
             { id: 2, lat: 37.7766, lng: -122.4602, name: "Fulton St (Arguello-2nd)", limit: 25 },
@@ -142,14 +132,14 @@
             { id: 33, lat: 37.7460, lng: -122.4555, name: "Laguna Honda Blvd", limit: 25 }
         ];
 
-        const MEMES = ["🚨 BRO. SLOW DOWN. 🚨", "💸 NOT TODAY, TICKET 💸", "🚓 THEY SEE YOU. 🚓", "🐌 EMBRACE THE SNAIL 🐌", "👀 BIG BROTHER IS WATCHING 👀", "🛑 CALM YOUR JETS 🛑"];
+        const MEMES = ["🚨 BRO. SLOW DOWN. 🚨", "💸 NOT TODAY, TICKET 💸", "🚓 THEY SEE YOU. 🚓", "🐌 SLOW DOWN MR. FAST 🐌", "🛑 CALM YOUR JETS 🛑"];
         
-        // App State
         let map, userMarker, wakeLock = null;
         let isAlerting = false;
-        let mutedCamId = null;
-        const ALERT_DIST = 0.52; // Trigger distance (miles)
-        const CLEAR_DIST = 0.65; // Clear distance (with hysteresis)
+        
+        // NEW PARAMETERS
+        const ALERT_DIST_METERS = 300; 
+        const CLEAR_DIST_METERS = 350; // Hysteresis
 
         async function startApp() {
             document.getElementById('start-screen').style.display = 'none';
@@ -161,81 +151,66 @@
                     enableHighAccuracy: true,
                     maximumAge: 0
                 });
-                document.getElementById('status-text').innerText = "TRACKING ACTIVE";
-            } else {
-                alert("This device doesn't support GPS.");
             }
         }
 
         function initMap() {
-            map = L.map('map', { 
-                zoomControl: false, 
-                attributionControl: false 
-            }).setView([37.7749, -122.4194], 14);
-
-            // Using high-contrast Voyager tiles
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([37.7749, -122.4194], 15);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
-            // Add camera danger zones to map
             CAMERAS.forEach(cam => {
-                L.circle([cam.lat, cam.lng], {
-                    color: '#ef4444',
-                    weight: 1,
-                    fillOpacity: 0.15,
-                    radius: 200 // Visual representation
-                }).addTo(map);
+                L.circle([cam.lat, cam.lng], { color: '#ef4444', weight: 1, fillOpacity: 0.15, radius: 100 }).addTo(map);
             });
 
-            // Create user position marker
-            userMarker = L.circleMarker([0,0], { 
-                radius: 10, 
-                className: 'user-pos-marker' 
-            }).addTo(map);
+            userMarker = L.circleMarker([0,0], { radius: 10, color: '#3b82f6', fillOpacity: 1, weight: 3, fillColor: 'white' }).addTo(map);
         }
 
         function handlePosition(pos) {
-            const { latitude, longitude } = pos.coords;
+            const { latitude, longitude, heading } = pos.coords;
             const userPos = [latitude, longitude];
 
             userMarker.setLatLng(userPos);
             map.panTo(userPos);
 
-            // Find nearest camera
-            let closest = { dist: 999, id: null, limit: 25 };
+            let closest = { dist: 999999, cam: null };
             CAMERAS.forEach(cam => {
-                const d = calcDist(latitude, longitude, cam.lat, cam.lng);
+                const d = calcDistMeters(latitude, longitude, cam.lat, cam.lng);
                 if (d < closest.dist) {
                     closest.dist = d;
-                    closest.id = cam.id;
-                    closest.limit = cam.limit;
+                    closest.cam = cam;
                 }
             });
 
-            // Logic: Trigger Alert
-            if (closest.dist <= ALERT_DIST && !isAlerting && mutedCamId !== closest.id) {
-                showAlert(closest.dist, closest.limit);
-            } 
-            // Logic: Clear Alert
-            else if (isAlerting && closest.dist >= CLEAR_DIST) {
+            document.getElementById('status-text').innerText = `${Math.round(closest.dist)}m to nearest`;
+
+            // TRIGGER LOGIC
+            if (closest.dist <= ALERT_DIST_METERS && !isAlerting) {
+                showAlert(closest.dist, closest.cam);
+            } else if (closest.dist >= CLEAR_DIST_METERS && isAlerting) {
                 hideAlert();
-                mutedCamId = null; // Reset mute when we leave the area
-            } 
-            // Logic: Update ongoing alert
-            else if (isAlerting) {
-                document.getElementById('dist-val').innerText = closest.dist.toFixed(2);
+            } else if (isAlerting) {
+                updateAlertUI(closest.dist, latitude, longitude, closest.cam);
             }
         }
 
-        function showAlert(dist, limit) {
+        function updateAlertUI(dist, userLat, userLon, cam) {
+            document.getElementById('dist-val').innerText = Math.round(dist);
+            
+            // Calculate Bearing to Camera
+            const bearing = getBearing(userLat, userLon, cam.lat, cam.lng);
+            
+            // Rotate the arrow
+            // Note: This points relative to North (Top of phone = North)
+            const arrow = document.getElementById('direction-arrow');
+            arrow.style.transform = `rotate(${bearing}deg)`;
+        }
+
+        function showAlert(dist, cam) {
             isAlerting = true;
             document.body.classList.add('is-alerting');
             const ui = document.getElementById('alert-ui');
-            const headline = document.getElementById('alert-headline');
-            
-            headline.innerText = MEMES[Math.floor(Math.random() * MEMES.length)];
-            document.getElementById('dist-val').innerText = dist.toFixed(2);
-            document.getElementById('speed-limit-badge').innerText = `Limit: ${limit} MPH`;
-            
+            document.getElementById('alert-headline').innerText = MEMES[Math.floor(Math.random() * MEMES.length)];
+            document.getElementById('speed-limit-badge').innerText = `LIMIT: ${cam.limit} MPH`;
             ui.style.display = 'flex';
         }
 
@@ -245,43 +220,47 @@
             document.getElementById('alert-ui').style.display = 'none';
         }
 
-        function manualDismiss() {
-            // Find current closest cam to mute it
-            // Simple approach for MVP: mute alerting for 2 minutes
-            hideAlert();
-            isAlerting = true; // Block triggers
-            setTimeout(() => { isAlerting = false; }, 120000); 
+        // --- MATH UTILS ---
+
+        // Distance in Meters (Haversine)
+        function calcDistMeters(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
         }
 
-        function testAlert() {
-            showAlert(0.34, 25);
-        }
+        // Bearing Calculation (Degrees)
+        function getBearing(lat1, lon1, lat2, lon2) {
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const λ1 = lon1 * Math.PI/180;
+            const λ2 = lon2 * Math.PI/180;
 
-        // --- MATH & UTILS ---
-        function calcDist(lat1, lon1, lat2, lon2) {
-            const R = 3958.8; // Miles
-            const dLat = (lat2-lat1) * Math.PI/180;
-            const dLon = (lon2-lon1) * Math.PI/180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * 
-                    Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+            const x = Math.cos(φ1) * Math.sin(φ2) -
+                      Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+            const θ = Math.atan2(y, x);
+            return (θ * 180 / Math.PI + 360) % 360; // 0-360 degrees
         }
 
         async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                }
-            } catch (err) {
-                console.warn("WakeLock unavailable");
-            }
+            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
 
         function handleGPSError(err) {
-            const msg = (err.code === 1) ? "Enable GPS in Settings" : "GPS Signal Lost";
-            document.getElementById('status-text').innerText = msg;
-            document.getElementById('status-text').classList.add('text-red-600');
+            document.getElementById('status-text').innerText = "GPS Error";
+        }
+
+        function testAlert() {
+            showAlert(150, CAMERAS[0]);
+            updateAlertUI(150, 37.77, -122.41, CAMERAS[0]);
         }
     </script>
 </body>
